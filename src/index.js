@@ -12,7 +12,7 @@ app.listen(PORT, () => {
 
 
 
-const { Client, GatewayIntentBits, Partials, ChannelType } = require("discord.js");
+const { Client, GatewayIntentBits, Partials, ChannelType, REST, Routes } = require("discord.js");
 const sqlite3 = require("sqlite3").verbose();
 require("dotenv").config();
 
@@ -377,7 +377,24 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 // Login bot
-client.login(BOT_TOKEN).catch((err) => {
-    console.error("Discord login failed:", err);
-    process.exit(1);
-});
+async function startDiscord() {
+    try {
+        const rest = new REST({ version: "10" }).setToken(BOT_TOKEN);
+        const me = await rest.get(Routes.user());
+        console.log(`Discord REST auth OK for bot user ${me.username}#${me.discriminator}.`);
+    } catch (err) {
+        console.error("Discord REST auth failed. BOT_TOKEN is invalid for this app or revoked.");
+        console.error(err);
+        process.exit(1);
+    }
+
+    try {
+        await client.login(BOT_TOKEN);
+        console.log("Discord gateway login request sent.");
+    } catch (err) {
+        console.error("Discord login failed:", err);
+        process.exit(1);
+    }
+}
+
+startDiscord();
