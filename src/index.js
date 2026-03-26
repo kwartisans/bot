@@ -12,7 +12,7 @@ app.listen(PORT, () => {
 
 
 
-const { Client, GatewayIntentBits, Partials } = require("discord.js");
+const { Client, GatewayIntentBits, Partials, ChannelType } = require("discord.js");
 const sqlite3 = require("sqlite3").verbose();
 require("dotenv").config();
 
@@ -89,6 +89,17 @@ db.run(`
 
 const TIER_PRICES = { t1: 1000, t2: 2000, t3: 5000, t4: 10000 };
 const REGISTRATION_PRICE = 2500;
+
+function toChannelName(input) {
+    const normalized = input
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-");
+
+    return (normalized || "team").slice(0, 90);
+}
 
 const READY_TIMEOUT_MS = 90000;
 const readyTimeout = setTimeout(() => {
@@ -316,16 +327,44 @@ client.on("interactionCreate", async (interaction) => {
             interaction.reply("⚠️ Failed to add user to private channel.");
         });
     } else if (commandName === "create_team") {
+        if (!interaction.guild) {
+            return interaction.reply("⚠️ This command can only be used in a server.");
+        }
+
         const teamName = options.getString("teamname");
         const teamId = `${teamName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+        const channelName = `team-${toChannelName(teamName)}`;
 
-        db.run("INSERT INTO teams (id, teamname, members) VALUES (?, ?, ?)", [teamId, teamName, "[]"], (err) => {
+        db.run("INSERT INTO teams (id, teamname, members) VALUES (?, ?, ?)", [teamId, teamName, "[]"], async (err) => {
             if (err) {
                 console.error("Error creating team:", err.message);
                 return interaction.reply("⚠️ Failed to create team.");
             }
 
-            interaction.reply(`✅ Team **${teamName}** created successfully!`);
+            try {
+                const channel = await interaction.guild.channels.create({
+                    name: channelName,
+                    type: ChannelType.GuildText,
+                    reason: `Team channel created for ${teamName}`,
+                });
+
+                db.run(
+                    "INSERT INTO channels (id, team_id, channel_id) VALUES (?, ?, ?)",
+                    [`${teamId}-${channel.id}`, teamId, channel.id],
+                    (channelErr) => {
+                        if (channelErr) {
+                            console.error("Failed to store channel mapping:", channelErr.message);
+                        }
+                    }
+                );
+
+                return interaction.reply(`✅ Team **${teamName}** created successfully! Channel: ${channel}`);
+            } catch (channelErr) {
+                console.error("Error creating team channel:", channelErr.message);
+                return interaction.reply(
+                    "⚠️ Team record was created, but channel creation failed. Ensure the bot has Manage Channels permission."
+                );
+            }
         });
     }
 });
