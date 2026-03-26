@@ -50,7 +50,7 @@ console.log(`BOT_TOKEN loaded (length: ${BOT_TOKEN.length}).`);
 console.log("Starting Discord bot login...");
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
+    intents: [GatewayIntentBits.Guilds],
     partials: [Partials.Channel],
 });
 
