@@ -22,6 +22,8 @@ if (!BOT_TOKEN) {
     process.exit(1);
 }
 
+console.log("Starting Discord bot login...");
+
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
     partials: [Partials.Channel],
@@ -63,8 +65,16 @@ db.run(`
 const TIER_PRICES = { t1: 1000, t2: 2000, t3: 5000, t4: 10000 };
 const REGISTRATION_PRICE = 2500;
 
+const READY_TIMEOUT_MS = 30000;
+const readyTimeout = setTimeout(() => {
+    console.error(`Discord bot did not reach ready state within ${READY_TIMEOUT_MS / 1000}s.`);
+    console.error("Check BOT_TOKEN and Discord Developer Portal bot configuration.");
+    process.exit(1);
+}, READY_TIMEOUT_MS);
+
 // Bot ready
 client.once("ready", () => {
+    clearTimeout(readyTimeout);
     console.log(`Bot is online as ${client.user.tag}`);
 });
 
