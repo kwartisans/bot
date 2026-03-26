@@ -9,6 +9,7 @@
     "sqlite3": "^6.0.1"
   },
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "deploy-commands": "node src/slash-deploy.js"
   }
 }

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Internship Leaderboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">Internship Progress Board</p>
+      <h1>Build. Commit. Rank.</h1>
+      <p class="subtitle">Live ranking based on coins, achievements, commits, and approved commits.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Leaderboard</h2>
+        <button id="refreshBtn">Refresh</button>
+      </div>
+      <div id="tableWrap" class="table-wrap"></div>
+    </section>
+  </main>
+
+  <script>
+    async function loadLeaderboard() {
+      const wrap = document.getElementById("tableWrap");
+      wrap.innerHTML = "<p class='loading'>Loading leaderboard...</p>";
+      try {
+        const response = await fetch('/api/leaderboard');
+        const data = await response.json();
+        const items = data.items || [];
+
+        if (!items.length) {
+          wrap.innerHTML = "<p class='loading'>No data yet.</p>";
+          return;
+        }
+
+        const rows = items.map((item, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td><code>${item.id}</code></td>
+            <td>${item.score}</td>
+            <td>${item.coins}</td>
+            <td>${item.achievements}</td>
+            <td>${item.commits}</td>
+            <td>${item.approved_commits}</td>
+          </tr>
+        `).join('');
+
+        wrap.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Student</th>
+                <th>Score</th>
+                <th>Coins</th>
+                <th>Achievements</th>
+                <th>Commits</th>
+                <th>Approved</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      } catch (err) {
+        wrap.innerHTML = "<p class='loading'>Could not load leaderboard.</p>";
+      }
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', loadLeaderboard);
+    loadLeaderboard();
+  </script>
+</body>
+</html>
