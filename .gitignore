@@ -7,10 +7,6 @@ node_modules/
 # Logs
 *.log
 
-# Optional lock files
-package-lock.json
-yarn.lock
-
 # Database files (if applicable)
 database/*.sqlite
 

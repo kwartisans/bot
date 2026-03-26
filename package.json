@@ -1,4 +1,7 @@
 {
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "@discordjs/builders": "^1.9.0",
     "@discordjs/rest": "^2.4.0",
@@ -6,7 +9,7 @@
     "discord.js": "^13.17.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "sqlite3": "^6.0.1"
+    "sqlite3": "5.1.7"
   },
   "scripts": {
     "start": "node src/index.js",
