@@ -290,5 +290,12 @@ client.on("interactionCreate", async (interaction) => {
     }
 });
 
+// Handle runtime errors
+client.on("error", (err) => {
+    console.error("Discord client error:", err.message);
+});
+
 // Login bot
-client.login(process.env.BOT_TOKEN);
+client.login(process.env.BOT_TOKEN)
+    .then(() => console.log("Discord login successful."))
+    .catch((err) => console.error("Discord login failed:", err.message));
