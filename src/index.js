@@ -104,8 +104,7 @@ function toChannelName(input) {
 const READY_TIMEOUT_MS = 90000;
 const readyTimeout = setTimeout(() => {
     console.error(`Discord bot did not reach ready state within ${READY_TIMEOUT_MS / 1000}s.`);
-    console.error("Check BOT_TOKEN and Discord Developer Portal bot configuration.");
-    process.exit(1);
+    console.error("Bot will keep retrying automatically. Check BOT_TOKEN and Discord Developer Portal bot configuration.");
 }, READY_TIMEOUT_MS);
 
 // Bot ready
@@ -128,6 +127,14 @@ client.on("shardReady", (id) => {
 
 client.on("shardDisconnect", (event, id) => {
     console.error(`Discord shard ${id} disconnected with code ${event.code}.`);
+});
+
+client.on("shardReconnecting", (id) => {
+    console.warn(`Discord shard ${id} reconnecting...`);
+});
+
+client.on("invalidated", () => {
+    console.error("Discord session invalidated. Regenerate token and redeploy.");
 });
 
 // Slash commands handling
