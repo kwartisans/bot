@@ -17,7 +17,7 @@ const sqlite3 = require("sqlite3").verbose();
 require("dotenv").config();
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
     partials: [Partials.Channel],
 });
 
@@ -296,6 +296,14 @@ client.on("error", (err) => {
 });
 
 // Login bot
+if (!process.env.BOT_TOKEN) {
+    console.error("BOT_TOKEN environment variable is not set. Please configure it in your deployment settings.");
+    process.exit(1);
+}
+
 client.login(process.env.BOT_TOKEN)
     .then(() => console.log("Discord login successful."))
-    .catch((err) => console.error("Discord login failed:", err.message));
+    .catch((err) => {
+        console.error("Discord login failed:", err.message);
+        process.exit(1);
+    });
