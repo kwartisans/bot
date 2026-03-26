@@ -16,11 +16,36 @@ const { Client, GatewayIntentBits, Partials } = require("discord.js");
 const sqlite3 = require("sqlite3").verbose();
 require("dotenv").config();
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-if (!BOT_TOKEN) {
-    console.error("Missing BOT_TOKEN. Set it in Render Environment Variables.");
+const requiredEnvVars = ["BOT_TOKEN"];
+const recommendedEnvVars = ["CLIENT_ID", "GUILD_ID"];
+
+const missingRequiredVars = requiredEnvVars.filter((name) => !process.env[name] || !process.env[name].trim());
+if (missingRequiredVars.length > 0) {
+    console.error(`Missing required environment variables: ${missingRequiredVars.join(", ")}`);
+    console.error("Set them in Render Environment Variables.");
     process.exit(1);
 }
+
+const missingRecommendedVars = recommendedEnvVars.filter((name) => !process.env[name] || !process.env[name].trim());
+if (missingRecommendedVars.length > 0) {
+    console.warn(`Missing optional environment variables: ${missingRecommendedVars.join(", ")}`);
+    console.warn("These are needed for slash command deployment, not for bot login.");
+}
+
+const rawBotToken = process.env.BOT_TOKEN;
+
+const BOT_TOKEN = rawBotToken.trim();
+if (BOT_TOKEN !== rawBotToken) {
+    console.warn("BOT_TOKEN had leading/trailing spaces and was trimmed.");
+}
+
+const tokenParts = BOT_TOKEN.split(".");
+if (tokenParts.length !== 3) {
+    console.error("BOT_TOKEN format looks invalid (expected 3 dot-separated parts).");
+    process.exit(1);
+}
+
+console.log(`BOT_TOKEN loaded (length: ${BOT_TOKEN.length}).`);
 
 console.log("Starting Discord bot login...");
 
@@ -65,7 +90,7 @@ db.run(`
 const TIER_PRICES = { t1: 1000, t2: 2000, t3: 5000, t4: 10000 };
 const REGISTRATION_PRICE = 2500;
 
-const READY_TIMEOUT_MS = 30000;
+const READY_TIMEOUT_MS = 90000;
 const readyTimeout = setTimeout(() => {
     console.error(`Discord bot did not reach ready state within ${READY_TIMEOUT_MS / 1000}s.`);
     console.error("Check BOT_TOKEN and Discord Developer Portal bot configuration.");
@@ -84,6 +109,14 @@ client.on("error", (err) => {
 
 client.on("shardError", (err) => {
     console.error("Discord shard error:", err);
+});
+
+client.on("shardReady", (id) => {
+    console.log(`Discord shard ${id} is ready.`);
+});
+
+client.on("shardDisconnect", (event, id) => {
+    console.error(`Discord shard ${id} disconnected with code ${event.code}.`);
 });
 
 // Slash commands handling

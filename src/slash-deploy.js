@@ -2,14 +2,17 @@
 const { REST, Routes } = require("discord.js");
 require("dotenv").config();
 
-const botToken = process.env.BOT_TOKEN;
-const botID = process.env.CLIENT_ID; // Ensure this is set in .env
-const serverID = process.env.GUILD_ID; // Ensure this is set in .env
+const requiredEnvVars = ["BOT_TOKEN", "CLIENT_ID", "GUILD_ID"];
+const missingVars = requiredEnvVars.filter((name) => !process.env[name] || !process.env[name].trim());
 
-if (!botToken || !botID || !serverID) {
-    console.error("Error: BOT_TOKEN, CLIENT_ID, or GUILD_ID is not defined in the .env file.");
+if (missingVars.length > 0) {
+    console.error(`Missing required environment variables: ${missingVars.join(", ")}`);
     process.exit(1);
 }
+
+const botToken = process.env.BOT_TOKEN.trim();
+const botID = process.env.CLIENT_ID.trim();
+const serverID = process.env.GUILD_ID.trim();
 
 const commands = [
     {
