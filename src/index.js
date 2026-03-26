@@ -12,9 +12,9 @@ app.listen(PORT, () => {
 
 
 
-const { Client, GatewayIntentBits, Partials } = require("discord.js");
+const { Client, GatewayIntentBits, Partials, ChannelType } = require("discord.js");
 const sqlite3 = require("sqlite3").verbose();
-require("dotenv").config({ path: "../.env" });
+require("dotenv").config();
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
@@ -69,9 +69,9 @@ client.on("interactionCreate", async (interaction) => {
     const { commandName, user, options } = interaction;
 
     if (commandName === "buy") {
-        const category = options.getString("category");
-        const tier = options.getString("tier");
-        const form = options.getString("form");
+        const category = options.getSubcommand();
+        const tier = category === "tiers" ? options.getString("tier") : null;
+        const form = category === "forms" ? options.getString("form") : null;
         const userId = user.id;
 
         db.get("SELECT coins FROM users WHERE id = ?", [userId], (err, row) => {
@@ -114,7 +114,7 @@ client.on("interactionCreate", async (interaction) => {
                     if (!role) {
                         interaction.guild.roles.create({
                             name: tierRoleName,
-                            color: 'BLUE', // Customize this color
+                            color: '#0000FF',
                             hoist: true,
                             unicodeEmoji: roleIcon,
                         }).then(newRole => {
@@ -150,7 +150,7 @@ client.on("interactionCreate", async (interaction) => {
                         if (!registrationRole) {
                             interaction.guild.roles.create({
                                 name: registrationRoleName,
-                                color: 'GREEN', // Customize this color
+                                color: '#00FF00',
                                 hoist: true,
                                 unicodeEmoji: registrationIcon,
                             }).then(newRole => {
@@ -187,12 +187,18 @@ client.on("interactionCreate", async (interaction) => {
             }
 
             const coinsEarned = Math.floor(Math.random() * (300 - 200 + 1)) + 200;
-            db.run("UPDATE users SET coins = coins + ?, last_work = ? WHERE id = ?", [coinsEarned, currentTime, userId], (err) => {
+            db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId], (err) => {
                 if (err) {
-                    console.error("Database update error:", err.message);
+                    console.error("Database insert error:", err.message);
                     return interaction.reply("⚠️ Failed to earn coins.");
                 }
-                interaction.reply(`✅ You earned **${coinsEarned} coins**!`);
+                db.run("UPDATE users SET coins = coins + ?, last_work = ? WHERE id = ?", [coinsEarned, currentTime, userId], (err) => {
+                    if (err) {
+                        console.error("Database update error:", err.message);
+                        return interaction.reply("⚠️ Failed to earn coins.");
+                    }
+                    interaction.reply(`✅ You earned **${coinsEarned} coins**!`);
+                });
             });
         });
     } else if (commandName === "coins") {
@@ -232,24 +238,35 @@ client.on("interactionCreate", async (interaction) => {
                     console.error("Database update error:", err.message);
                     return interaction.reply("⚠️ Failed to process your transfer.");
                 }
-                db.run("UPDATE users SET coins = coins + ? WHERE id = ?", [amount, recipient.id], (err) => {
+                db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [recipient.id], (err) => {
                     if (err) {
-                        console.error("Database update error:", err.message);
+                        console.error("Database insert error:", err.message);
                         return interaction.reply("⚠️ Failed to process the recipient's coins.");
                     }
-                    interaction.reply(`✅ You gave **${amount} coins** to **${recipient.username}**!`);
+                    db.run("UPDATE users SET coins = coins + ? WHERE id = ?", [amount, recipient.id], (err) => {
+                        if (err) {
+                            console.error("Database update error:", err.message);
+                            return interaction.reply("⚠️ Failed to process the recipient's coins.");
+                        }
+                        interaction.reply(`✅ You gave **${amount} coins** to **${recipient.username}**!`);
+                    });
                 });
             });
         });
     } else if (commandName === "add") {
         const userToAdd = options.getUser("username");
 
-        interaction.guild.channels.create(`private-${userToAdd.username}`, {
-            type: "GUILD_TEXT",
+        interaction.guild.channels.create({
+            name: `private-${userToAdd.username}`,
+            type: ChannelType.GuildText,
             permissionOverwrites: [
                 {
+                    id: interaction.guild.id,
+                    deny: ["ViewChannel"],
+                },
+                {
                     id: userToAdd.id,
-                    allow: ["VIEW_CHANNEL", "SEND_MESSAGES"],
+                    allow: ["ViewChannel", "SendMessages"],
                 },
             ],
         }).then(channel => {
