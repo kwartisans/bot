@@ -5,6 +5,13 @@ const { Routes } = require("discord-api-types/v10");
 function createDiscordBot(config, repo) {
   const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
 
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
+    ]);
+  }
+
   client.once("ready", () => {
     console.log(`Bot is online as ${client.user.tag}`);
   });
@@ -96,6 +103,19 @@ function createDiscordBot(config, repo) {
         return respond(`Added **${points}** achievement points for **${target.username}**.`);
       }
 
+      if (commandName === "reset_stats") {
+        const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
+        if (!canManageGuild) return respond("Manage Server required.");
+
+        const target = options.getUser("student");
+        const resetCoins = options.getBoolean("reset_coins") || false;
+        if (!target) return respond("Invalid reset request.");
+
+        await repo.resetStats(target.id, resetCoins);
+        const coinsNote = resetCoins ? " Coins and cooldowns were also reset." : "";
+        return respond(`Reset internship stats for **${target.username}**.${coinsNote}`);
+      }
+
       if (commandName === "leaderboard") {
         const rows = await repo.getLeaderboard(10);
         if (rows.length === 0) return respond("No leaderboard data yet.");
@@ -111,9 +131,17 @@ function createDiscordBot(config, repo) {
   });
 
   async function start() {
+    console.log("Starting Discord auth sequence...");
     const rest = new REST({ version: "10" }).setToken(config.botToken);
-    const me = await rest.get(Routes.user());
-    console.log(`Discord REST auth OK for ${me.username}#${me.discriminator}.`);
+
+    try {
+      const me = await withTimeout(rest.get(Routes.user("@me")), 10000, "Discord REST preflight");
+      console.log(`Discord REST auth OK for ${me.username}#${me.discriminator}.`);
+    } catch (err) {
+      console.warn(`Discord REST preflight skipped: ${err.message}`);
+    }
+
+    console.log("Starting Discord gateway login...");
     await client.login(config.botToken);
   }
 

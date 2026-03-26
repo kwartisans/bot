@@ -61,6 +61,20 @@ function createRepository(database) {
     await database.run("UPDATE internship_submissions SET achievements = achievements + ?, updated_at = ? WHERE user_id = ?", [points, Date.now(), userId]);
   }
 
+  async function resetStats(userId, resetCoins) {
+    await ensureUser(userId);
+    await ensureSubmission(userId);
+
+    await database.run(
+      "UPDATE internship_submissions SET repo_url = '', achievements = 0, commits = 0, approved_commits = 0, updated_at = ? WHERE user_id = ?",
+      [Date.now(), userId]
+    );
+
+    if (resetCoins) {
+      await database.run("UPDATE users SET coins = 0, last_work = 0, last_claim = 0 WHERE id = ?", [userId]);
+    }
+  }
+
   async function getLeaderboard(limit = 10) {
     return database.all(
       `SELECT u.id, u.coins,
@@ -86,6 +100,7 @@ function createRepository(database) {
     addCommits,
     approveCommits,
     addAchievement,
+    resetStats,
     getLeaderboard,
   };
 }

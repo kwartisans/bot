@@ -40,6 +40,14 @@ const commandDefinitions = [
       { name: "points", type: 4, description: "Achievement points", required: true },
     ],
   },
+  {
+    name: "reset_stats",
+    description: "Admin: reset a student's internship stats.",
+    options: [
+      { name: "student", type: 6, description: "Student user", required: true },
+      { name: "reset_coins", type: 5, description: "Also reset coins", required: false },
+    ],
+  },
   { name: "leaderboard", description: "Show internship leaderboard by score." },
 ];
 
