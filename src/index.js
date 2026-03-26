@@ -14,7 +14,13 @@ app.listen(PORT, () => {
 
 const { Client, GatewayIntentBits, Partials } = require("discord.js");
 const sqlite3 = require("sqlite3").verbose();
-require("dotenv").config({ path: "./.env" });
+require("dotenv").config();
+
+const BOT_TOKEN = process.env.BOT_TOKEN;
+if (!BOT_TOKEN) {
+    console.error("Missing BOT_TOKEN. Set it in Render Environment Variables.");
+    process.exit(1);
+}
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
@@ -60,6 +66,14 @@ const REGISTRATION_PRICE = 2500;
 // Bot ready
 client.once("ready", () => {
     console.log(`Bot is online as ${client.user.tag}`);
+});
+
+client.on("error", (err) => {
+    console.error("Discord client error:", err);
+});
+
+client.on("shardError", (err) => {
+    console.error("Discord shard error:", err);
 });
 
 // Slash commands handling
@@ -274,4 +288,7 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 // Login bot
-client.login(process.env.BOT_TOKEN);
+client.login(BOT_TOKEN).catch((err) => {
+    console.error("Discord login failed:", err);
+    process.exit(1);
+});
