@@ -14,7 +14,7 @@
     <section class="hero">
       <p class="eyebrow">Internship Progress Board</p>
       <h1>Build. Commit. Rank.</h1>
-      <p class="subtitle">Live ranking based on coins, achievements, commits, and approved commits.</p>
+      <p class="subtitle">Live ranking based on coins, achievements, reported commits, GitHub commits, approved commits, and daily tasks.</p>
     </section>
 
     <section class="panel">
@@ -48,7 +48,9 @@
             <td>${item.coins}</td>
             <td>${item.achievements}</td>
             <td>${item.commits}</td>
+            <td>${item.github_commits}</td>
             <td>${item.approved_commits}</td>
+            <td>${item.daily_tasks_completed}</td>
           </tr>
         `).join('');
 
@@ -61,8 +63,10 @@
                 <th>Score</th>
                 <th>Coins</th>
                 <th>Achievements</th>
-                <th>Commits</th>
+                <th>Reported</th>
+                <th>GitHub</th>
                 <th>Approved</th>
+                <th>Daily Tasks</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>

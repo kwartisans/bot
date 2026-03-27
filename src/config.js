@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 const requiredEnv = ["BOT_TOKEN"];
-const optionalEnv = ["CLIENT_ID", "GUILD_ID", "GOOGLE_FORM_URL"];
+const optionalEnv = ["CLIENT_ID", "GUILD_ID", "GOOGLE_FORM_URL", "GITHUB_TOKEN", "GITHUB_API_VERSION", "GITHUB_MAX_PAGES"];
 
 function missingVars(names) {
   return names.filter((name) => !process.env[name] || !process.env[name].trim());
@@ -35,6 +35,9 @@ function getConfig() {
     googleFormUrl: process.env.GOOGLE_FORM_URL || "https://docs.google.com/forms/d/e/1FAIpQLSerzre1mv308QHfnP5wyKU1mQ1pSf0B1P5hsSpx3tjz-niIyQ/viewform?usp=header",
     port: Number(process.env.PORT || 3000),
     claimCooldownMs: 60 * 60 * 1000,
+    githubToken: process.env.GITHUB_TOKEN ? process.env.GITHUB_TOKEN.trim() : "",
+    githubApiVersion: process.env.GITHUB_API_VERSION ? process.env.GITHUB_API_VERSION.trim() : "2026-03-10",
+    githubMaxPages: Number(process.env.GITHUB_MAX_PAGES || 10),
   };
 }
 

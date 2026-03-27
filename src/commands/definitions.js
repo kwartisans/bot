@@ -15,8 +15,19 @@ const commandDefinitions = [
     description: "Submit your internship repository URL.",
     options: [
       { name: "repo_url", type: 3, description: "Repository URL", required: true },
+      { name: "github_username", type: 3, description: "GitHub username (optional for commit filtering)", required: false },
     ],
   },
+  {
+    name: "submit_daily_task",
+    description: "Submit your daily internship task completion.",
+    options: [
+      { name: "task", type: 3, description: "Task summary for today", required: true },
+      { name: "date", type: 3, description: "Date in YYYY-MM-DD (optional, defaults to today UTC)", required: false },
+    ],
+  },
+  { name: "sync_github_commits", description: "Sync your GitHub commits from your submitted repo." },
+  { name: "sync_all_github_commits", description: "Admin: sync GitHub commits for all interns." },
   {
     name: "report_commits",
     description: "Report newly completed commits.",
@@ -46,6 +57,16 @@ const commandDefinitions = [
     options: [
       { name: "student", type: 6, description: "Student user", required: true },
       { name: "reset_coins", type: 5, description: "Also reset coins", required: false },
+    ],
+  },
+  {
+    name: "create_team",
+    description: "Create an internship team with up to 4 members.",
+    options: [
+      { name: "team_name", type: 3, description: "Unique team name", required: true },
+      { name: "member_1", type: 6, description: "First teammate", required: false },
+      { name: "member_2", type: 6, description: "Second teammate", required: false },
+      { name: "member_3", type: 6, description: "Third teammate", required: false },
     ],
   },
   { name: "leaderboard", description: "Show internship leaderboard by score." },

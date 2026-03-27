@@ -4,6 +4,7 @@ const { initializeSchema } = require("./db/schema");
 const { createRepository } = require("./db/repository");
 const { createWebServer } = require("./web/server");
 const { createDiscordBot } = require("./bot/discord");
+const { createGitHubService } = require("./github/service");
 
 async function main() {
   try {
@@ -14,11 +15,12 @@ async function main() {
     console.log("Database schema is ready.");
 
     const repository = createRepository(database);
+    const githubService = createGitHubService(config);
 
     const webServer = createWebServer(config, repository);
     webServer.start();
 
-    const bot = createDiscordBot(config, repository);
+    const bot = createDiscordBot(config, repository, githubService);
     await bot.start();
     console.log("Discord gateway login request sent.");
   } catch (err) {

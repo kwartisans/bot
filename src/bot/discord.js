@@ -2,7 +2,20 @@ const { Client, Intents, Permissions } = require("discord.js");
 const { REST } = require("@discordjs/rest");
 const { Routes } = require("discord-api-types/v10");
 
-function createDiscordBot(config, repo) {
+function normalizeTaskDate(input) {
+  if (!input) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  const trimmed = input.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return "";
+
+  const parsed = new Date(`${trimmed}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return trimmed;
+}
+
+function createDiscordBot(config, repo, githubService) {
   const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
 
   function withTimeout(promise, ms, label) {
@@ -26,18 +39,27 @@ function createDiscordBot(config, repo) {
     const { commandName, user, options } = interaction;
     const userId = user.id;
 
-    const respond = async (message) => {
-      if (interaction.deferred || interaction.replied) {
-        return interaction.editReply(message);
-      }
-      return interaction.reply(message);
-    };
-
+    let deferSucceeded = false;
     try {
       await interaction.deferReply();
+      deferSucceeded = true;
     } catch (err) {
-      console.error("Failed to defer interaction:", err.message);
+      console.warn("Skipping defer (already acknowledged):", err.code);
     }
+
+    const respond = async (message) => {
+      try {
+        if (deferSucceeded || interaction.deferred) {
+          return interaction.editReply(message);
+        } else if (interaction.replied) {
+          return null;
+        }
+        return interaction.reply(message);
+      } catch (err) {
+        console.error("Response delivery failed:", err.code, err.message);
+        return null;
+      }
+    };
 
     try {
       await repo.ensureUser(userId);
@@ -71,9 +93,52 @@ function createDiscordBot(config, repo) {
 
       if (commandName === "submit_repo") {
         const repoUrl = options.getString("repo_url");
+        const githubUsername = options.getString("github_username") || "";
         if (!repoUrl.startsWith("http://") && !repoUrl.startsWith("https://")) return respond("Invalid URL.");
-        await repo.saveRepository(userId, repoUrl);
-        return respond(`Repository submitted: ${repoUrl}`);
+        const saved = await repo.saveRepository(userId, repoUrl, githubUsername);
+        if (saved.isGitHubRepo) {
+          const usernameNote = githubUsername ? ` with GitHub author filter **${githubUsername}**` : "";
+          return respond(`Repository submitted: ${repoUrl}\nGitHub sync enabled for **${saved.owner}/${saved.repo}**${usernameNote}.`);
+        }
+        return respond(`Repository submitted: ${repoUrl}\nNote: this is not a GitHub repo URL, so GitHub commit sync will be skipped.`);
+      }
+
+      if (commandName === "submit_daily_task") {
+        const task = (options.getString("task") || "").trim();
+        const dateInput = options.getString("date") || "";
+        const taskDate = normalizeTaskDate(dateInput);
+
+        if (!task || task.length < 3) return respond("Task summary must be at least 3 characters.");
+        if (!taskDate) return respond("Invalid date. Use YYYY-MM-DD.");
+
+        const result = await repo.submitDailyTask(userId, taskDate, task);
+        if (result.created) {
+          return respond(`Daily task recorded for **${taskDate}**.`);
+        }
+        return respond(`Updated your existing daily task entry for **${taskDate}**.`);
+      }
+
+      if (commandName === "sync_github_commits") {
+        const result = await repo.syncGitHubCommitsForUser(userId, githubService, {
+          maxPages: config.githubMaxPages,
+        });
+
+        if (!result.ok && result.reason === "missing_repo") {
+          return respond("Submit a valid GitHub repository first using /submit_repo.");
+        }
+
+        return respond(`GitHub sync complete for **${result.owner}/${result.repo}**. Added **${result.added}** new commit(s).`);
+      }
+
+      if (commandName === "sync_all_github_commits") {
+        const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
+        if (!canManageGuild) return respond("Manage Server required.");
+
+        const result = await repo.syncGitHubCommitsForAllUsers(githubService, {
+          maxPages: config.githubMaxPages,
+        });
+
+        return respond(`GitHub sync complete. Synced **${result.syncedUsers}** user(s), added **${result.totalAdded}** new commit(s).`);
       }
 
       if (commandName === "report_commits") {
@@ -116,17 +181,31 @@ function createDiscordBot(config, repo) {
         return respond(`Reset internship stats for **${target.username}**.${coinsNote}`);
       }
 
+      if (commandName === "create_team") {
+        const teamName = options.getString("team_name");
+        const member1 = options.getUser("member_1");
+        const member2 = options.getUser("member_2");
+        const member3 = options.getUser("member_3");
+
+        const memberIds = [member1, member2, member3].filter(Boolean).map((member) => member.id);
+        const result = await repo.createTeam(userId, teamName, memberIds);
+        if (!result.ok) return respond(result.error);
+
+        const mentions = result.memberIds.map((id) => `<@${id}>`).join(", ");
+        return respond(`Team **${result.name}** created with members: ${mentions}`);
+      }
+
       if (commandName === "leaderboard") {
         const rows = await repo.getLeaderboard(10);
         if (rows.length === 0) return respond("No leaderboard data yet.");
-        const lines = rows.map((row, i) => `${i + 1}. <@${row.id}> | Score: ${row.score} | Coins: ${row.coins} | Achievements: ${row.achievements} | Commits: ${row.commits} | Approved: ${row.approved_commits}`);
+        const lines = rows.map((row, i) => `${i + 1}. <@${row.id}> | Score: ${row.score} | Coins: ${row.coins} | Achievements: ${row.achievements} | Reported: ${row.commits} | GitHub: ${row.github_commits} | Approved: ${row.approved_commits} | Daily Tasks: ${row.daily_tasks_completed}`);
         return respond(`Internship Leaderboard\n${lines.join("\n")}`);
       }
 
       return respond("Unknown command.");
     } catch (err) {
       console.error("Command error:", err.message);
-      return respond("Database is unavailable. Please try again.");
+      return respond(`Request failed: ${err.message}`);
     }
   });
 
