@@ -90,11 +90,34 @@ th {
   text-transform: uppercase;
   color: #456078;
   background: #f8fcff;
+  white-space: nowrap;
 }
 
 tbody tr:nth-child(1) { background: linear-gradient(90deg, #fff8d6, #ffffff); }
 tbody tr:nth-child(2) { background: linear-gradient(90deg, #f5f8ff, #ffffff); }
 tbody tr:nth-child(3) { background: linear-gradient(90deg, #fff3ea, #ffffff); }
+
+/* Repository link styling */
+td a {
+  color: #0066cc;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+td a:hover {
+  color: #0052a3;
+  text-decoration: underline;
+}
+
+/* Code/username styling */
+code {
+  background: #f0f4f8;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
 
 .loading {
   margin: 0;

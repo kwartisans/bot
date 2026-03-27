@@ -27,6 +27,28 @@
   </main>
 
   <script>
+    // Extract username from repository URL using regex
+    function extractUsernameFromRepo(repoUrl) {
+      if (!repoUrl) return '';
+      const match = repoUrl.match(/github\.com\/([^/]+)/i);
+      return match ? match[1] : '';
+    }
+
+    // Get the display username, preferring github_username, falling back to extracted from repo
+    function getDisplayUsername(item) {
+      if (item.github_username) return item.github_username;
+      if (item.repo_url) return extractUsernameFromRepo(item.repo_url);
+      return 'N/A';
+    }
+
+    // Build repository display text
+    function getRepositoryDisplay(item) {
+      if (!item.repo_url) return 'No repo';
+      const owner = item.github_owner || extractUsernameFromRepo(item.repo_url);
+      const repo = item.github_repo || 'repository';
+      return `${owner}/${repo}`;
+    }
+
     async function loadLeaderboard() {
       const wrap = document.getElementById("tableWrap");
       wrap.innerHTML = "<p class='loading'>Loading leaderboard...</p>";
@@ -43,13 +65,14 @@
         const rows = items.map((item, i) => `
           <tr>
             <td>${i + 1}</td>
-            <td><code>${item.id}</code></td>
+            <td><code>${getDisplayUsername(item)}</code></td>
+            <td><a href="${item.repo_url}" target="_blank" rel="noopener">${getRepositoryDisplay(item)}</a></td>
             <td>${item.score}</td>
             <td>${item.coins}</td>
+            <td>${item.approved_commits}</td>
             <td>${item.achievements}</td>
             <td>${item.commits}</td>
             <td>${item.github_commits}</td>
-            <td>${item.approved_commits}</td>
             <td>${item.daily_tasks_completed}</td>
           </tr>
         `).join('');
@@ -59,13 +82,14 @@
             <thead>
               <tr>
                 <th>#</th>
-                <th>Student</th>
+                <th>Username</th>
+                <th>Repository</th>
                 <th>Score</th>
                 <th>Coins</th>
+                <th>✓ Approved</th>
                 <th>Achievements</th>
                 <th>Reported</th>
                 <th>GitHub</th>
-                <th>Approved</th>
                 <th>Daily Tasks</th>
               </tr>
             </thead>

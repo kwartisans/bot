@@ -1,4 +1,4 @@
-const { Client, Intents, Permissions } = require("discord.js");
+const { Client, Intents, Permissions, EmbedBuilder } = require("discord.js");
 const { REST } = require("@discordjs/rest");
 const { Routes } = require("discord-api-types/v10");
 
@@ -17,6 +17,7 @@ function normalizeTaskDate(input) {
 
 function createDiscordBot(config, repo, githubService) {
   const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
+  const TALENT_ROLE = "Talent2026";
 
   function withTimeout(promise, ms, label) {
     return Promise.race([
@@ -67,40 +68,95 @@ function createDiscordBot(config, repo, githubService) {
       if (commandName === "claim") {
         const result = await repo.claimCoins(userId, config.claimCooldownMs);
         if (!result.ok) {
-          return respond(`Wait **${Math.ceil(result.timeLeft / 60000)} minutes** before claiming again.`);
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("⏳ Claim on Cooldown")
+            .setDescription(`Wait **${Math.ceil(result.timeLeft / 60000)} minutes** before claiming again.`);
+          return respond({ embeds: [embed] });
         }
-        return respond(`Claim successful: **${result.coinsEarned} coins**.`);
+        const embed = new EmbedBuilder()
+          .setColor("#10B981")
+          .setTitle("🎉 Claim Successful!")
+          .setDescription(`You earned **${result.coinsEarned} coins**`)
+          .setTimestamp();
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "coins") {
         const coins = await repo.getCoins(userId);
-        return respond(`You have **${coins} coins**.`);
+        const embed = new EmbedBuilder()
+          .setColor("#3B82F6")
+          .setTitle("💰 Your Coins")
+          .setDescription(`You have **${coins} coins**`);
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "give") {
         const recipient = options.getUser("username");
         const amount = options.getInteger("amount");
-        if (!recipient || amount <= 0 || recipient.id === userId) return respond("Invalid give request.");
+        if (!recipient || amount <= 0 || recipient.id === userId) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Invalid Transfer")
+            .setDescription("Check the recipient and amount.");
+          return respond({ embeds: [embed] });
+        }
 
         const success = await repo.transferCoins(userId, recipient.id, amount);
-        if (!success) return respond("Not enough coins.");
-        return respond(`Sent **${amount} coins** to **${recipient.username}**.`);
+        if (!success) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Not Enough Coins")
+            .setDescription(`You need **${amount}** coins but don't have enough.`);
+          return respond({ embeds: [embed] });
+        }
+        const embed = new EmbedBuilder()
+          .setColor("#10B981")
+          .setTitle("✅ Coins Transferred")
+          .addFields(
+            { name: "Sent to", value: `<@${recipient.id}>`, inline: true },
+            { name: "Amount", value: `**${amount} coins**`, inline: true }
+          );
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "application") {
-        return respond(`Internship Form: ${config.googleFormUrl}`);
+        const embed = new EmbedBuilder()
+          .setColor("#3B82F6")
+          .setTitle("📝 Internship Application")
+          .setDescription(`[Click here to apply](${config.googleFormUrl})`);
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "submit_repo") {
         const repoUrl = options.getString("repo_url");
         const githubUsername = options.getString("github_username") || "";
-        if (!repoUrl.startsWith("http://") && !repoUrl.startsWith("https://")) return respond("Invalid URL.");
+        if (!repoUrl.startsWith("http://") && !repoUrl.startsWith("https://")) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Invalid URL")
+            .setDescription("URL must start with `http://` or `https://`");
+          return respond({ embeds: [embed] });
+        }
         const saved = await repo.saveRepository(userId, repoUrl, githubUsername);
         if (saved.isGitHubRepo) {
-          const usernameNote = githubUsername ? ` with GitHub author filter **${githubUsername}**` : "";
-          return respond(`Repository submitted: ${repoUrl}\nGitHub sync enabled for **${saved.owner}/${saved.repo}**${usernameNote}.`);
+          const usernameNote = githubUsername ? ` with GitHub author filter **${githubUsername}**` : " (using repo owner as filter)";
+          const embed = new EmbedBuilder()
+            .setColor("#10B981")
+            .setTitle("✅ Repository Submitted")
+            .addFields(
+              { name: "URL", value: repoUrl, inline: false },
+              { name: "GitHub Repo", value: `**${saved.owner}/${saved.repo}**${usernameNote}`, inline: false }
+            )
+            .setTimestamp();
+          return respond({ embeds: [embed] });
         }
-        return respond(`Repository submitted: ${repoUrl}\nNote: this is not a GitHub repo URL, so GitHub commit sync will be skipped.`);
+        const embed = new EmbedBuilder()
+          .setColor("#FBBF24")
+          .setTitle("⚠️ Repository Submitted")
+          .setDescription(repoUrl)
+          .addFields({ name: "Note", value: "This is not a GitHub repo URL, so GitHub commit sync will be skipped.", inline: false });
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "submit_daily_task") {
@@ -108,19 +164,42 @@ function createDiscordBot(config, repo, githubService) {
         const dateInput = options.getString("date") || "";
         const taskDate = normalizeTaskDate(dateInput);
 
-        if (!task || task.length < 3) return respond("Task summary must be at least 3 characters.");
-        if (!taskDate) return respond("Invalid date. Use YYYY-MM-DD.");
+        if (!task || task.length < 3) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Invalid Task")
+            .setDescription("Task summary must be at least 3 characters.");
+          return respond({ embeds: [embed] });
+        }
+        if (!taskDate) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Invalid Date")
+            .setDescription("Use YYYY-MM-DD format.");
+          return respond({ embeds: [embed] });
+        }
 
         const result = await repo.submitDailyTask(userId, taskDate, task);
-        if (result.created) {
-          return respond(`Daily task recorded for **${taskDate}**.`);
-        }
-        return respond(`Updated your existing daily task entry for **${taskDate}**.`);
+        const color = result.created ? "#10B981" : "#3B82F6";
+        const title = result.created ? "✅ Daily Task Recorded" : "✏️ Daily Task Updated";
+        const embed = new EmbedBuilder()
+          .setColor(color)
+          .setTitle(title)
+          .addFields(
+            { name: "Date", value: taskDate, inline: true },
+            { name: "Task", value: task, inline: false }
+          )
+          .setTimestamp();
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "sync_github_commits") {
         if (!githubService.enabled) {
-          return respond("GitHub integration is not configured. Set GITHUB_TOKEN.");
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ GitHub Not Configured")
+            .setDescription("Set `GITHUB_TOKEN` environment variable to enable GitHub sync.");
+          return respond({ embeds: [embed] });
         }
 
         try {
@@ -129,72 +208,178 @@ function createDiscordBot(config, repo, githubService) {
           });
 
           if (!result.ok && result.reason === "missing_repo") {
-            return respond("Submit a valid GitHub repository first using /submit_repo.");
+            const embed = new EmbedBuilder()
+              .setColor("#FF6B6B")
+              .setTitle("❌ No GitHub Repo Submitted")
+              .setDescription("Use `/submit_repo` with a GitHub URL first.");
+            return respond({ embeds: [embed] });
           }
 
-          return respond(`GitHub sync complete for **${result.owner}/${result.repo}**. Added **${result.added}** new commit(s).`);
+          const embed = new EmbedBuilder()
+            .setColor("#10B981")
+            .setTitle("✅ GitHub Sync Complete")
+            .addFields(
+              { name: "Repository", value: `**${result.owner}/${result.repo}**`, inline: true },
+              { name: "New Commits", value: `**${result.added}**`, inline: true }
+            )
+            .setTimestamp();
+          return respond({ embeds: [embed] });
         } catch (err) {
-          return respond(`GitHub sync failed: ${err.message}`);
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ GitHub Sync Failed")
+            .setDescription(err.message);
+          return respond({ embeds: [embed] });
         }
       }
 
       if (commandName === "sync_all_github_commits") {
         if (!githubService.enabled) {
-          return respond("GitHub integration is not configured. Set GITHUB_TOKEN.");
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ GitHub Not Configured")
+            .setDescription("Set `GITHUB_TOKEN` environment variable to enable GitHub sync.");
+          return respond({ embeds: [embed] });
         }
 
         const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
-        if (!canManageGuild) return respond("Manage Server required.");
+        if (!canManageGuild) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Permission Denied")
+            .setDescription("You need `Manage Server` permission.");
+          return respond({ embeds: [embed] });
+        }
 
         try {
           const result = await repo.syncGitHubCommitsForAllUsers(githubService, {
             maxPages: config.githubMaxPages,
           });
 
-          return respond(`GitHub sync complete. Synced **${result.syncedUsers}** user(s), added **${result.totalAdded}** new commit(s).`);
+          const embed = new EmbedBuilder()
+            .setColor("#10B981")
+            .setTitle("✅ Bulk GitHub Sync Complete")
+            .addFields(
+              { name: "Users Synced", value: `**${result.syncedUsers}**`, inline: true },
+              { name: "Total Commits Added", value: `**${result.totalAdded}**`, inline: true }
+            )
+            .setTimestamp();
+          return respond({ embeds: [embed] });
         } catch (err) {
-          return respond(`GitHub sync failed: ${err.message}`);
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Sync Failed")
+            .setDescription(err.message);
+          return respond({ embeds: [embed] });
         }
       }
 
       if (commandName === "report_commits") {
         const count = options.getInteger("count");
-        if (!count || count < 1) return respond("Commit count must be at least 1.");
+        if (!count || count < 1) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Invalid Count")
+            .setDescription("Commit count must be at least 1.");
+          return respond({ embeds: [embed] });
+        }
         await repo.addCommits(userId, count);
-        return respond(`Added **${count}** commits.`);
+        const embed = new EmbedBuilder()
+          .setColor("#10B981")
+          .setTitle("✅ Commits Reported")
+          .setDescription(`Added **${count}** commit(s) to your progress`)
+          .setTimestamp();
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "approve_commits") {
         const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
-        if (!canManageGuild) return respond("Manage Server required.");
+        if (!canManageGuild) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Permission Denied")
+            .setDescription("You need `Manage Server` permission.");
+          return respond({ embeds: [embed] });
+        }
         const target = options.getUser("student");
         const count = options.getInteger("count");
-        if (!target || !count || count < 1) return respond("Invalid approval request.");
+        if (!target || !count || count < 1) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Invalid Request")
+            .setDescription("Check the student and count.");
+          return respond({ embeds: [embed] });
+        }
         await repo.approveCommits(target.id, count);
-        return respond(`Approved **${count}** commits for **${target.username}**.`);
+        const embed = new EmbedBuilder()
+          .setColor("#10B981")
+          .setTitle("✅ Commits Approved")
+          .addFields(
+            { name: "Student", value: `<@${target.id}>`, inline: true },
+            { name: "Commits Approved", value: `**${count}**`, inline: true }
+          )
+          .setTimestamp();
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "add_achievement") {
         const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
-        if (!canManageGuild) return respond("Manage Server required.");
+        if (!canManageGuild) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Permission Denied")
+            .setDescription("You need `Manage Server` permission.");
+          return respond({ embeds: [embed] });
+        }
         const target = options.getUser("student");
         const points = options.getInteger("points");
-        if (!target || !points || points < 1) return respond("Invalid achievement request.");
+        if (!target || !points || points < 1) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Invalid Request")
+            .setDescription("Check the student and points.");
+          return respond({ embeds: [embed] });
+        }
         await repo.addAchievement(target.id, points);
-        return respond(`Added **${points}** achievement points for **${target.username}**.`);
+        const embed = new EmbedBuilder()
+          .setColor("#10B981")
+          .setTitle("🏆 Achievement Awarded")
+          .addFields(
+            { name: "Student", value: `<@${target.id}>`, inline: true },
+            { name: "Points", value: `**${points}**`, inline: true }
+          )
+          .setTimestamp();
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "reset_stats") {
         const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
-        if (!canManageGuild) return respond("Manage Server required.");
+        if (!canManageGuild) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Permission Denied")
+            .setDescription("You need `Manage Server` permission.");
+          return respond({ embeds: [embed] });
+        }
 
         const target = options.getUser("student");
         const resetCoins = options.getBoolean("reset_coins") || false;
-        if (!target) return respond("Invalid reset request.");
+        if (!target) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Invalid Request")
+            .setDescription("Please select a student.");
+          return respond({ embeds: [embed] });
+        }
 
         await repo.resetStats(target.id, resetCoins);
-        const coinsNote = resetCoins ? " Coins and cooldowns were also reset." : "";
-        return respond(`Reset internship stats for **${target.username}**.${coinsNote}`);
+        const coinsNote = resetCoins ? "\nCoins and cooldowns were also reset." : "";
+        const embed = new EmbedBuilder()
+          .setColor("#FBBF24")
+          .setTitle("🔄 Stats Reset")
+          .setDescription(`Internship stats for <@${target.id}> have been reset.${coinsNote}`)
+          .setTimestamp();
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "create_team") {
@@ -205,17 +390,98 @@ function createDiscordBot(config, repo, githubService) {
 
         const memberIds = [member1, member2, member3].filter(Boolean).map((member) => member.id);
         const result = await repo.createTeam(userId, teamName, memberIds);
-        if (!result.ok) return respond(result.error);
+        if (!result.ok) {
+          const embed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("❌ Team Creation Failed")
+            .setDescription(result.error);
+          return respond({ embeds: [embed] });
+        }
 
         const mentions = result.memberIds.map((id) => `<@${id}>`).join(", ");
-        return respond(`Team **${result.name}** created with members: ${mentions}`);
+        const embed = new EmbedBuilder()
+          .setColor("#10B981")
+          .setTitle("✅ Team Created")
+          .addFields(
+            { name: "Team Name", value: `**${result.name}**`, inline: false },
+            { name: "Members", value: mentions || "**No members**", inline: false }
+          )
+          .setTimestamp();
+        return respond({ embeds: [embed] });
       }
 
       if (commandName === "leaderboard") {
-        const rows = await repo.getLeaderboard(10);
-        if (rows.length === 0) return respond("No leaderboard data yet.");
-        const lines = rows.map((row, i) => `${i + 1}. <@${row.id}> | Score: ${row.score} | Coins: ${row.coins} | Achievements: ${row.achievements} | Reported: ${row.commits} | GitHub: ${row.github_commits} | Approved: ${row.approved_commits} | Daily Tasks: ${row.daily_tasks_completed}`);
-        return respond(`Internship Leaderboard\n${lines.join("\n")}`);
+        const rows = await repo.getLeaderboard(20);
+        if (rows.length === 0) {
+          const noDataEmbed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("Internship Leaderboard")
+            .setDescription("No leaderboard data yet.");
+          return respond({ embeds: [noDataEmbed] });
+        }
+
+        try {
+          const guild = interaction.guild;
+          const talentRole = guild.roles.cache.find(r => r.name === TALENT_ROLE);
+
+          if (!talentRole) {
+            const embed = new EmbedBuilder()
+              .setColor("#FF6B6B")
+              .setTitle("Internship Leaderboard")
+              .setDescription(`Role "${TALENT_ROLE}" not found in this server.`);
+            return respond({ embeds: [embed] });
+          }
+
+          const filteredRows = [];
+          for (const row of rows) {
+            try {
+              const member = await guild.members.fetch(row.id);
+              if (member.roles.cache.has(talentRole.id)) {
+                filteredRows.push(row);
+              }
+            } catch (err) {
+              console.warn(`Could not check role for user ${row.id}`);
+            }
+          }
+
+          if (filteredRows.length === 0) {
+            const noTalentEmbed = new EmbedBuilder()
+              .setColor("#FF6B6B")
+              .setTitle("Internship Leaderboard")
+              .setDescription(`No members with "${TALENT_ROLE}" role found yet.`);
+            return respond({ embeds: [noTalentEmbed] });
+          }
+
+          const leaderboardPages = [];
+          for (let i = 0; i < filteredRows.length; i += 10) {
+            const pageRows = filteredRows.slice(i, i + 10);
+            const embed = new EmbedBuilder()
+              .setColor("#4F46E5")
+              .setTitle("🏆 Internship Leaderboard")
+              .setDescription(`Page ${Math.floor(i / 10) + 1} of ${Math.ceil(filteredRows.length / 10)}`)
+              .setTimestamp();
+
+            pageRows.forEach((row, idx) => {
+              const rank = i + idx + 1;
+              const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
+              embed.addFields({
+                name: `${medal} <@${row.id}>`,
+                value: `**Score:** ${row.score} | **Coins:** ${row.coins} | **Achievements:** ${row.achievements} | **Reported:** ${row.commits} | **GitHub:** ${row.github_commits} | **Approved:** ${row.approved_commits} | **Daily Tasks:** ${row.daily_tasks_completed}`,
+                inline: false,
+              });
+            });
+
+            leaderboardPages.push(embed);
+          }
+
+          return respond({ embeds: [leaderboardPages[0]] });
+        } catch (err) {
+          const errorEmbed = new EmbedBuilder()
+            .setColor("#FF6B6B")
+            .setTitle("Error")
+            .setDescription(`Failed to load leaderboard: ${err.message}`);
+          return respond({ embeds: [errorEmbed] });
+        }
       }
 
       return respond("Unknown command.");

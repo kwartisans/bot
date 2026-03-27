@@ -248,6 +248,9 @@ function createRepository(database) {
     return database.all(
       `SELECT u.id, u.coins,
               COALESCE(s.repo_url, '') AS repo_url,
+              COALESCE(s.github_owner, '') AS github_owner,
+              COALESCE(s.github_repo, '') AS github_repo,
+              COALESCE(s.github_username, '') AS github_username,
               COALESCE(s.achievements, 0) AS achievements,
               COALESCE(s.commits, 0) AS commits,
               COALESCE(s.approved_commits, 0) AS approved_commits,
