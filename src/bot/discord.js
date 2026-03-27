@@ -119,26 +119,42 @@ function createDiscordBot(config, repo, githubService) {
       }
 
       if (commandName === "sync_github_commits") {
-        const result = await repo.syncGitHubCommitsForUser(userId, githubService, {
-          maxPages: config.githubMaxPages,
-        });
-
-        if (!result.ok && result.reason === "missing_repo") {
-          return respond("Submit a valid GitHub repository first using /submit_repo.");
+        if (!githubService.enabled) {
+          return respond("GitHub integration is not configured. Set GITHUB_TOKEN.");
         }
 
-        return respond(`GitHub sync complete for **${result.owner}/${result.repo}**. Added **${result.added}** new commit(s).`);
+        try {
+          const result = await repo.syncGitHubCommitsForUser(userId, githubService, {
+            maxPages: config.githubMaxPages,
+          });
+
+          if (!result.ok && result.reason === "missing_repo") {
+            return respond("Submit a valid GitHub repository first using /submit_repo.");
+          }
+
+          return respond(`GitHub sync complete for **${result.owner}/${result.repo}**. Added **${result.added}** new commit(s).`);
+        } catch (err) {
+          return respond(`GitHub sync failed: ${err.message}`);
+        }
       }
 
       if (commandName === "sync_all_github_commits") {
+        if (!githubService.enabled) {
+          return respond("GitHub integration is not configured. Set GITHUB_TOKEN.");
+        }
+
         const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
         if (!canManageGuild) return respond("Manage Server required.");
 
-        const result = await repo.syncGitHubCommitsForAllUsers(githubService, {
-          maxPages: config.githubMaxPages,
-        });
+        try {
+          const result = await repo.syncGitHubCommitsForAllUsers(githubService, {
+            maxPages: config.githubMaxPages,
+          });
 
-        return respond(`GitHub sync complete. Synced **${result.syncedUsers}** user(s), added **${result.totalAdded}** new commit(s).`);
+          return respond(`GitHub sync complete. Synced **${result.syncedUsers}** user(s), added **${result.totalAdded}** new commit(s).`);
+        } catch (err) {
+          return respond(`GitHub sync failed: ${err.message}`);
+        }
       }
 
       if (commandName === "report_commits") {
