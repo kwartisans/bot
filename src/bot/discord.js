@@ -1,6 +1,4 @@
-const { Client, GatewayIntentBits, PermissionsBitField, EmbedBuilder } = require("discord.js");
-const { REST } = require("@discordjs/rest");
-const { Routes } = require("discord-api-types/v10");
+const { Client, GatewayIntentBits, PermissionsBitField, EmbedBuilder, REST, Routes } = require("discord.js");
 
 function normalizeTaskDate(input) {
   if (!input) {
@@ -71,14 +69,30 @@ function createDiscordBot(config, repo, githubService) {
 
     const respond = async (message) => {
       try {
-        if (deferSucceeded) {
+        if (interaction.deferred || deferSucceeded) {
           return interaction.editReply(message);
+        }
+        if (interaction.replied) {
+          return interaction.followUp(message);
         }
         return interaction.reply(message);
       } catch (err) {
         if (err && err.code === 40060) {
           try {
-            return interaction.editReply(message);
+            if (interaction.deferred) {
+              return interaction.editReply(message);
+            }
+            if (interaction.replied) {
+              return interaction.followUp(message);
+            }
+            return interaction.reply(message);
+          } catch (_) {
+            return null;
+          }
+        }
+        if (err && err.code === "InteractionNotReplied") {
+          try {
+            return interaction.reply(message);
           } catch (_) {
             return null;
           }
@@ -463,7 +477,10 @@ function createDiscordBot(config, repo, githubService) {
             try {
               const member = await guild.members.fetch(row.id);
               if (member.roles.cache.has(talentRole.id)) {
-                filteredRows.push(row);
+                filteredRows.push({
+                  ...row,
+                  memberName: member.displayName || member.user.globalName || member.user.username,
+                });
               }
             } catch (err) {
               console.warn(`Could not check role for user ${row.id}`);
@@ -491,8 +508,8 @@ function createDiscordBot(config, repo, githubService) {
               const rank = i + idx + 1;
               const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
               embed.addFields({
-                name: `${medal} <@${row.id}>`,
-                value: `**Score:** ${row.score} | **Coins:** ${row.coins} | **Achievements:** ${row.achievements} | **Reported:** ${row.commits} | **GitHub:** ${row.github_commits} | **Approved:** ${row.approved_commits} | **Daily Tasks:** ${row.daily_tasks_completed}`,
+                name: `${medal} ${row.memberName}`,
+                value: `**Score:** ${row.score} | **Coins:** ${row.coins} | **Achievements:** ${row.achievements} | **Reported:** ${row.commits} | **GitHub:** ${row.github_commits} | **Approved:** ${row.approved_commits} | **Daily Tasks:** ${row.daily_tasks_completed} | **User ID:** ${row.id}`,
                 inline: false,
               });
             });
