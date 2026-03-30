@@ -1,4 +1,12 @@
-const { Octokit } = require("@octokit/core");
+let octokitConstructorPromise;
+
+async function getOctokitConstructor() {
+  if (!octokitConstructorPromise) {
+    octokitConstructorPromise = import("@octokit/core").then((mod) => mod.Octokit);
+  }
+
+  return octokitConstructorPromise;
+}
 
 function createGitHubService(config) {
   const enabled = Boolean(config.githubToken);
@@ -12,10 +20,20 @@ function createGitHubService(config) {
     };
   }
 
-  const octokit = new Octokit({ auth: config.githubToken });
+  let octokit;
+
+  async function getOctokit() {
+    if (!octokit) {
+      const Octokit = await getOctokitConstructor();
+      octokit = new Octokit({ auth: config.githubToken });
+    }
+
+    return octokit;
+  }
 
   async function listCommits({ owner, repo, author, since, page = 1, perPage = 100 }) {
-    const response = await octokit.request("GET /repos/{owner}/{repo}/commits", {
+    const githubClient = await getOctokit();
+    const response = await githubClient.request("GET /repos/{owner}/{repo}/commits", {
       owner,
       repo,
       author,

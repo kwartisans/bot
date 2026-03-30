@@ -1,4 +1,4 @@
-const { Client, Intents, Permissions, EmbedBuilder } = require("discord.js");
+const { Client, GatewayIntentBits, PermissionsBitField, EmbedBuilder } = require("discord.js");
 const { REST } = require("@discordjs/rest");
 const { Routes } = require("discord-api-types/v10");
 
@@ -16,8 +16,23 @@ function normalizeTaskDate(input) {
 }
 
 function createDiscordBot(config, repo, githubService) {
-  const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
+  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
   const TALENT_ROLE = "Talent2026";
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function isTransientLoginError(err) {
+    const text = String((err && err.message) || err || "").toLowerCase();
+    return (
+      text.includes("timeout") ||
+      text.includes("aborted") ||
+      text.includes("econnreset") ||
+      text.includes("etimedout") ||
+      text.includes("network")
+    );
+  }
 
   function withTimeout(promise, ms, label) {
     return Promise.race([
@@ -26,7 +41,7 @@ function createDiscordBot(config, repo, githubService) {
     ]);
   }
 
-  client.once("ready", () => {
+  client.once("clientReady", () => {
     console.log(`Bot is online as ${client.user.tag}`);
   });
 
@@ -35,7 +50,7 @@ function createDiscordBot(config, repo, githubService) {
   client.on("error", (err) => console.error("Discord client error:", err));
 
   client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isCommand()) return;
+    if (!interaction.isChatInputCommand()) return;
 
     const { commandName, user, options } = interaction;
     const userId = user.id;
@@ -45,18 +60,29 @@ function createDiscordBot(config, repo, githubService) {
       await interaction.deferReply();
       deferSucceeded = true;
     } catch (err) {
-      console.warn("Skipping defer (already acknowledged):", err.code);
+      if (err && err.code === 40060) {
+        console.warn("Skipping defer (already acknowledged):", err.code);
+        // 40060 means interaction is already deferred; treat as success
+        deferSucceeded = true;
+      } else {
+        console.warn("Defer failed:", err && err.code ? err.code : err.message);
+      }
     }
 
     const respond = async (message) => {
       try {
-        if (deferSucceeded || interaction.deferred) {
+        if (deferSucceeded) {
           return interaction.editReply(message);
-        } else if (interaction.replied) {
-          return null;
         }
         return interaction.reply(message);
       } catch (err) {
+        if (err && err.code === 40060) {
+          try {
+            return interaction.editReply(message);
+          } catch (_) {
+            return null;
+          }
+        }
         console.error("Response delivery failed:", err.code, err.message);
         return null;
       }
@@ -242,7 +268,7 @@ function createDiscordBot(config, repo, githubService) {
           return respond({ embeds: [embed] });
         }
 
-        const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
+        const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(PermissionsBitField.Flags.ManageGuild);
         if (!canManageGuild) {
           const embed = new EmbedBuilder()
             .setColor("#FF6B6B")
@@ -293,7 +319,7 @@ function createDiscordBot(config, repo, githubService) {
       }
 
       if (commandName === "approve_commits") {
-        const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
+        const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(PermissionsBitField.Flags.ManageGuild);
         if (!canManageGuild) {
           const embed = new EmbedBuilder()
             .setColor("#FF6B6B")
@@ -323,7 +349,7 @@ function createDiscordBot(config, repo, githubService) {
       }
 
       if (commandName === "add_achievement") {
-        const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
+        const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(PermissionsBitField.Flags.ManageGuild);
         if (!canManageGuild) {
           const embed = new EmbedBuilder()
             .setColor("#FF6B6B")
@@ -353,7 +379,7 @@ function createDiscordBot(config, repo, githubService) {
       }
 
       if (commandName === "reset_stats") {
-        const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_GUILD);
+        const canManageGuild = interaction.memberPermissions && interaction.memberPermissions.has(PermissionsBitField.Flags.ManageGuild);
         if (!canManageGuild) {
           const embed = new EmbedBuilder()
             .setColor("#FF6B6B")
@@ -496,14 +522,41 @@ function createDiscordBot(config, repo, githubService) {
     const rest = new REST({ version: "10" }).setToken(config.botToken);
 
     try {
-      const me = await withTimeout(rest.get(Routes.user("@me")), 10000, "Discord REST preflight");
+      const me = await withTimeout(
+        rest.get(Routes.user("@me")),
+        config.discordRestPreflightTimeoutMs,
+        "Discord REST preflight"
+      );
       console.log(`Discord REST auth OK for ${me.username}#${me.discriminator}.`);
     } catch (err) {
       console.warn(`Discord REST preflight skipped: ${err.message}`);
     }
 
     console.log("Starting Discord gateway login...");
-    await client.login(config.botToken);
+    let lastError;
+    const maxAttempts = Math.max(1, config.discordLoginRetries);
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await client.login(config.botToken);
+        return;
+      } catch (err) {
+        lastError = err;
+        const retryable = isTransientLoginError(err);
+        const isFinalAttempt = attempt >= maxAttempts;
+
+        if (!retryable || isFinalAttempt) {
+          throw err;
+        }
+
+        console.warn(
+          `Discord login attempt ${attempt}/${maxAttempts} failed: ${err.message}. Retrying in ${config.discordLoginRetryDelayMs}ms...`
+        );
+        await delay(config.discordLoginRetryDelayMs);
+      }
+    }
+
+    throw lastError;
   }
 
   return { client, start };

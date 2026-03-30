@@ -18,7 +18,7 @@ async function main() {
     const githubService = createGitHubService(config);
 
     const webServer = createWebServer(config, repository);
-    webServer.start();
+    await webServer.start();
 
     const bot = createDiscordBot(config, repository, githubService);
     await bot.start();

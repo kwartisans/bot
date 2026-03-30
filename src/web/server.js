@@ -21,8 +21,29 @@ function createWebServer(config, repo) {
   });
 
   function start() {
-    app.listen(config.port, () => {
-      console.log(`HTTP server listening on port ${config.port}`);
+    const maxAttempts = 10;
+    let port = config.port;
+
+    return new Promise((resolve, reject) => {
+      const tryListen = (attempt) => {
+        const server = app.listen(port, () => {
+          console.log(`HTTP server listening on port ${port}`);
+          resolve(server);
+        });
+
+        server.on("error", (err) => {
+          if (err && err.code === "EADDRINUSE" && attempt < maxAttempts) {
+            console.warn(`Port ${port} is in use. Trying port ${port + 1}...`);
+            port += 1;
+            setTimeout(() => tryListen(attempt + 1), 50);
+            return;
+          }
+
+          reject(err);
+        });
+      };
+
+      tryListen(1);
     });
   }
 

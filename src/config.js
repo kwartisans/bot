@@ -1,7 +1,17 @@
 require("dotenv").config();
 
 const requiredEnv = ["BOT_TOKEN"];
-const optionalEnv = ["CLIENT_ID", "GUILD_ID", "GOOGLE_FORM_URL", "GITHUB_TOKEN", "GITHUB_API_VERSION", "GITHUB_MAX_PAGES"];
+const optionalEnv = [
+  "CLIENT_ID",
+  "GUILD_ID",
+  "GOOGLE_FORM_URL",
+  "GITHUB_TOKEN",
+  "GITHUB_API_VERSION",
+  "GITHUB_MAX_PAGES",
+  "DISCORD_REST_PREFLIGHT_TIMEOUT_MS",
+  "DISCORD_LOGIN_RETRIES",
+  "DISCORD_LOGIN_RETRY_DELAY_MS",
+];
 
 function missingVars(names) {
   return names.filter((name) => !process.env[name] || !process.env[name].trim());
@@ -38,6 +48,9 @@ function getConfig() {
     githubToken: process.env.GITHUB_TOKEN ? process.env.GITHUB_TOKEN.trim() : "",
     githubApiVersion: process.env.GITHUB_API_VERSION ? process.env.GITHUB_API_VERSION.trim() : "2026-03-10",
     githubMaxPages: Number(process.env.GITHUB_MAX_PAGES || 10),
+    discordRestPreflightTimeoutMs: Number(process.env.DISCORD_REST_PREFLIGHT_TIMEOUT_MS || 15000),
+    discordLoginRetries: Number(process.env.DISCORD_LOGIN_RETRIES || 5),
+    discordLoginRetryDelayMs: Number(process.env.DISCORD_LOGIN_RETRY_DELAY_MS || 5000),
   };
 }
 
